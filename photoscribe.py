@@ -4,7 +4,7 @@ PhotoScribe - AI-Powered Photo Metadata Generator
 Uses local Ollama models (Gemma 3) to analyse photographs and generate
 title, caption, and keywords, then writes them directly to IPTC/XMP metadata.
 
-Requires: Python 3.10-3.13, PySide6, Pillow, requests, rawpy, exiftool (system)
+Requires: Python 3.10+, PySide6, Pillow, requests, rawpy, exiftool (system)
 """
 
 import sys
@@ -183,23 +183,30 @@ class OllamaWorker(QThread):
 
                 payload = {
                     "model": self.model,
-                    "prompt": full_prompt,
-                    "images": [img_b64],
+                    "messages": [
+                        {
+                            "role": "user",
+                            "content": full_prompt,
+                            "images": [img_b64],
+                        }
+                    ],
                     "stream": False,
                     "options": {
                         "temperature": 0.3,
-                        "num_predict": 512,
-                    }
+                        "num_predict": 1024,
+                    },
+                    "think": False,
                 }
 
                 self.log_message.emit(f"Sending to {self.model}...")
                 resp = requests.post(
-                    f"{self.ollama_url}/api/generate",
+                    f"{self.ollama_url}/api/chat",
                     json=payload,
-                    timeout=120
+                    timeout=180
                 )
                 resp.raise_for_status()
-                response_text = resp.json().get("response", "")
+                resp_json = resp.json()
+                response_text = resp_json.get("message", {}).get("content", "")
                 self.log_message.emit(f"Response received ({len(response_text)} chars)")
 
                 # Parse JSON from response (handle markdown fences)

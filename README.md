@@ -55,17 +55,22 @@ sudo apt install python3 python3-venv python3-pip
 
 Download and install from **[ollama.com/download](https://ollama.com/download)**.
 
+> **Important:** Gemma 4 models require Ollama v0.20.0 or newer. Check your version with `ollama --version` and update if needed.
+
 After installing, open a terminal (Terminal on Mac, Command Prompt on Windows) and pull a vision model:
 
 ```
+# Recommended — Gemma 4 (best quality, needs 10GB RAM)
+ollama pull gemma4
+
+# Or Gemma 3 12b (still excellent, needs 8GB RAM)
 ollama pull gemma3:12b
-```
 
-This downloads ~8GB. If your machine has less than 8GB of RAM, use the smaller model instead:
-
-```
+# Lightweight option for older machines (needs 3GB RAM)
 ollama pull gemma3:4b
 ```
+
+Gemma 4 produces noticeably better captions and keywords than Gemma 3, but both work. Use whatever your hardware handles comfortably.
 
 Ollama runs in the background automatically after installation. On macOS you'll see it in the menu bar. On Windows it runs as a system tray app.
 
@@ -155,8 +160,9 @@ python photoscribe.py
 
 ## Tips
 
-- **Model size matters.** The 12b model produces noticeably better captions than 4b, which in turn beats 1b significantly. Use the biggest model your hardware can handle.
-- **GPU matters on Windows.** If you have an NVIDIA GPU with 12GB+ VRAM, the 12b model will run entirely on the GPU and be very fast. With 8GB VRAM it'll partially offload to CPU and be slower but still usable.
+- **Gemma 4 vs Gemma 3.** Gemma 4 produces better captions and keywords than Gemma 3. If your hardware can run it, use it. Both model families work with PhotoScribe.
+- **GPU matters on Windows.** If you have an NVIDIA GPU with 12GB+ VRAM, models will run entirely on the GPU and be very fast. With 8GB VRAM, larger models partially offload to CPU and run slower but still work.
+- **Apple Silicon is fast.** M-series Macs with unified memory handle these models exceptionally well. A 32GB M2 Max can comfortably run Gemma 4 or Gemma 3 12b.
 - **Set batch context.** The model produces much better results when it knows the location and event. Don't skip this.
 - **Use the keyword vocabulary** if you need consistent terms across your catalogue.
 - **Review before writing.** The AI is good but not infallible. The results panel lets you edit everything before it touches your files.
