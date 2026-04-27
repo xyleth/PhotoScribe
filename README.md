@@ -158,6 +158,16 @@ python photoscribe.py
 - **CSV export** for spreadsheet review
 - **Dark UI** because photographers have standards
 
+## Remote Ollama
+
+If you run Ollama on a separate machine (e.g. a dedicated inference server, a Spark, or a desktop with a beefy GPU), PhotoScribe can connect to it over your local network.
+
+1. In the PhotoScribe **Settings** tab, change the **URL** field from `http://localhost:11434` to your server's IP, e.g. `http://192.168.1.50:11434`
+2. On the remote machine, set Ollama to listen on all interfaces by setting the environment variable `OLLAMA_HOST=0.0.0.0` and restarting Ollama
+3. Any models installed on the remote machine will appear in PhotoScribe's model dropdown
+
+This means you can run larger models (Gemma 4, Gemma 3 27b) on hardware with plenty of VRAM while using PhotoScribe on a lighter laptop.
+
 ## Tips
 
 - **Gemma 4 vs Gemma 3.** Gemma 4 produces better captions and keywords than Gemma 3. If your hardware can run it, use it. Both model families work with PhotoScribe.
