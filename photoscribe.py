@@ -1424,6 +1424,8 @@ class PhotoScribe(QMainWindow):
             self.status_label.setText("Stopping...")
 
     def _on_progress(self, index, status):
+        if index < 0 or index >= len(self.photos):
+            return
         self.photos[index].status = status
         self._refresh_photo_table()
         self.progress_bar.setValue(
@@ -1431,6 +1433,8 @@ class PhotoScribe(QMainWindow):
         )
 
     def _on_result(self, index, result):
+        if index < 0 or index >= len(self.photos):
+            return
         if isinstance(result, PhotoMetadata):
             self.photos[index].metadata = result
             self.photos[index].status = "done"
