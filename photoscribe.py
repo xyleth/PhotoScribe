@@ -4,7 +4,7 @@ PhotoScribe - AI-Powered Photo Metadata Generator
 Uses local Ollama models (Gemma 3) to analyse photographs and generate
 title, caption, and keywords, then writes them directly to IPTC/XMP metadata.
 
-Requires: Python 3.10+, PySide6, Pillow, requests, rawpy, exiftool (system)
+Requires: Python 3.10-3.13, PySide6, Pillow, requests, rawpy, exiftool (system)
 """
 
 import sys

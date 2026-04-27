@@ -26,11 +26,15 @@ Metadata is written to both IPTC and embedded XMP, so Lightroom Classic, Capture
 
 Before running PhotoScribe, you need three things installed on your system:
 
-### 1. Python 3.10+
+### 1. Python 3.10-3.13
 
-- **macOS:** `brew install python3` or download from [python.org](https://www.python.org/downloads/)
+> **Important:** Python 3.14 is not yet supported (PySide6 and rawpy don't have compatible releases). Use Python 3.13 for the best experience.
+
+- **macOS:** `brew install python@3.13` or download from [python.org](https://www.python.org/downloads/)
 - **Windows:** Download from [python.org](https://www.python.org/downloads/) (tick "Add Python to PATH" during install)
 - **Linux:** `sudo apt install python3 python3-venv python3-pip`
+
+The install script will automatically find the best compatible Python version on your system.
 
 ### 2. Ollama (runs the AI model locally)
 
@@ -134,6 +138,9 @@ If you get a security warning, go to System Settings > Privacy & Security and al
 
 **Slow generation**
 Larger models take longer. On a Mac with Apple Silicon, the 12b model typically processes a photo in 5-15 seconds. If it's very slow, try the 4b model.
+
+**"No matching distribution found" or PySide6 errors during install**
+You're likely running Python 3.14, which isn't supported yet. Install Python 3.13: `brew install python@3.13` (macOS) and run the install script again. It will automatically pick the right version.
 
 ## Licence
 

@@ -12,6 +12,9 @@ NC='\033[0m' # No colour
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
+MIN_PY="3.10"
+MAX_PY="3.13"
+
 echo ""
 echo -e "${BOLD}📷 PhotoScribe${NC}"
 echo -e "AI-powered photo metadata generator"
@@ -25,37 +28,81 @@ elif [[ "$OSTYPE" == "linux-gnu"* ]]; then
     OS="linux"
 fi
 
-# ── Check Python ──
+# ── Find a compatible Python (3.10-3.13) ──
 PYTHON=""
-if command -v python3 &>/dev/null; then
-    PYTHON="python3"
-elif command -v python &>/dev/null; then
-    PYTHON="python"
+PYTHON_VERSION=""
+
+check_python_version() {
+    local py_cmd="$1"
+    if ! command -v "$py_cmd" &>/dev/null; then
+        return 1
+    fi
+    local ver
+    ver=$("$py_cmd" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null) || return 1
+    local major minor
+    major=$(echo "$ver" | cut -d. -f1)
+    minor=$(echo "$ver" | cut -d. -f2)
+    local min_minor max_minor
+    min_minor=$(echo "$MIN_PY" | cut -d. -f2)
+    max_minor=$(echo "$MAX_PY" | cut -d. -f2)
+
+    if [ "$major" -eq 3 ] && [ "$minor" -ge "$min_minor" ] && [ "$minor" -le "$max_minor" ]; then
+        PYTHON="$py_cmd"
+        PYTHON_VERSION="$ver"
+        return 0
+    fi
+    return 1
+}
+
+# Try specific versions first (prefer newest compatible)
+for v in 3.13 3.12 3.11 3.10; do
+    if check_python_version "python$v"; then
+        break
+    fi
+done
+
+# Fall back to python3 / python
+if [ -z "$PYTHON" ]; then
+    check_python_version "python3" || check_python_version "python" || true
 fi
 
 if [ -z "$PYTHON" ]; then
-    echo -e "${RED}✗ Python 3 not found.${NC}"
-    if [ "$OS" = "macos" ]; then
-        echo "  Install with: brew install python3"
-        echo "  Or download from: https://www.python.org/downloads/"
+    if command -v python3 &>/dev/null; then
+        BAD_VER=$(python3 -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null)
+        echo -e "${RED}✗ Python $BAD_VER found, but PhotoScribe requires Python ${MIN_PY}-${MAX_PY}.${NC}"
+        echo ""
+        if [ "$OS" = "macos" ]; then
+            echo "  Install a compatible version with Homebrew:"
+            echo "    brew install python@3.13"
+            echo ""
+            echo "  Then run this script again."
+        else
+            echo "  Install a compatible version:"
+            echo "    sudo apt install python3.13 python3.13-venv"
+            echo ""
+            echo "  Then run this script again."
+        fi
     else
-        echo "  Install with: sudo apt install python3 python3-venv python3-pip"
+        echo -e "${RED}✗ Python 3 not found.${NC}"
+        if [ "$OS" = "macos" ]; then
+            echo "  Install with: brew install python@3.13"
+            echo "  Or download from: https://www.python.org/downloads/"
+        else
+            echo "  Install with: sudo apt install python3 python3-venv python3-pip"
+        fi
     fi
     exit 1
 fi
 
-PY_VERSION=$($PYTHON --version 2>&1 | grep -oE '[0-9]+\.[0-9]+')
-echo -e "${GREEN}✓${NC} Python $PY_VERSION found"
+echo -e "${GREEN}✓${NC} Python $PYTHON_VERSION found ($PYTHON)"
 
 # ── Check Ollama ──
 if command -v ollama &>/dev/null; then
     echo -e "${GREEN}✓${NC} Ollama found"
 
-    # Check if Ollama is running
     if curl -s http://localhost:11434/api/tags &>/dev/null; then
         echo -e "${GREEN}✓${NC} Ollama is running"
 
-        # Check for vision models
         MODELS=$(curl -s http://localhost:11434/api/tags | grep -oE '"name":"[^"]*"' | sed 's/"name":"//;s/"//')
         if echo "$MODELS" | grep -qi "gemma3"; then
             echo -e "${GREEN}✓${NC} Vision model found"
@@ -113,11 +160,20 @@ fi
 # ── Set up Python virtual environment ──
 VENV_DIR="$SCRIPT_DIR/venv"
 
+# If venv exists but was built with a different Python, rebuild it
+if [ -d "$VENV_DIR" ]; then
+    VENV_PY_VER=$("$VENV_DIR/bin/python" -c "import sys; print(f'{sys.version_info.major}.{sys.version_info.minor}')" 2>/dev/null || echo "unknown")
+    if [ "$VENV_PY_VER" != "$PYTHON_VERSION" ]; then
+        echo -e "${YELLOW}⚠${NC} Existing venv uses Python $VENV_PY_VER, rebuilding with $PYTHON_VERSION..."
+        rm -rf "$VENV_DIR"
+    fi
+fi
+
 if [ ! -d "$VENV_DIR" ]; then
     echo ""
     echo "Setting up Python environment..."
     $PYTHON -m venv "$VENV_DIR"
-    echo -e "${GREEN}✓${NC} Virtual environment created"
+    echo -e "${GREEN}✓${NC} Virtual environment created (Python $PYTHON_VERSION)"
 fi
 
 # Activate venv
