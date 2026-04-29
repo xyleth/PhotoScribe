@@ -14,7 +14,6 @@ import pytest
 from photoscribe import MetadataWriter, PhotoMetadata
 from tests.conftest import make_completed_process
 
-
 # ─────────────────────────────────────────────────────────
 # read_existing_metadata
 # ─────────────────────────────────────────────────────────
@@ -236,11 +235,10 @@ def test_write_metadata_skip_existing_writes_when_field_empty():
 
 
 def test_write_metadata_raises_on_exiftool_error(metadata):
-    with patch("photoscribe.subprocess.run",
-               return_value=make_completed_process(returncode=1,
-                                                   stderr="exiftool died")):
-        with pytest.raises(RuntimeError, match="exiftool died"):
-            MetadataWriter.write_metadata("/x.jpg", metadata)
+    failed = make_completed_process(returncode=1, stderr="exiftool died")
+    with patch("photoscribe.subprocess.run", return_value=failed), \
+         pytest.raises(RuntimeError, match="exiftool died"):
+        MetadataWriter.write_metadata("/x.jpg", metadata)
 
 
 def test_write_metadata_filepath_is_last_arg(metadata):

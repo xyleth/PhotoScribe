@@ -144,7 +144,8 @@ def test_encode_image_dispatches_to_rawpy_for_raw_extension(tmp_path):
 
     imread.assert_called_once_with(str(raw_path))
     image_open.assert_not_called()
-    assert isinstance(encoded, str) and len(encoded) > 0
+    assert isinstance(encoded, str)
+    assert len(encoded) > 0
 
 
 def test_encode_image_passes_expected_postprocess_options(tmp_path):

@@ -5,7 +5,7 @@ We mock `requests.post` and feed canned response payloads, then call
 direct connections without an event loop. A real fixture JPEG is fed
 through `_encode_image` so the encode path is exercised end-to-end.
 
-These cover the LLM-response parser inline at lines 212–225 of
+These cover the LLM-response parser inline at lines 212-225 of
 photoscribe.py: markdown-fence stripping, JSON slicing from prose, and
 JSONDecodeError handling.
 """
