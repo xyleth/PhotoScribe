@@ -257,31 +257,81 @@ class MetadataWriter:
         return shutil.which("exiftool") is not None
 
     @staticmethod
-    def write_metadata(filepath, metadata: PhotoMetadata, backup=True):
+    def read_existing_metadata(filepath):
+        """Read existing title, caption, keywords from file."""
+        try:
+            result = subprocess.run(
+                ["exiftool", "-j", "-IPTC:ObjectName",
+                 "-IPTC:Caption-Abstract", "-IPTC:Keywords", filepath],
+                capture_output=True, text=True, timeout=15
+            )
+            if result.returncode == 0:
+                data = json.loads(result.stdout)
+                if data:
+                    entry = data[0]
+                    title = entry.get("ObjectName", "")
+                    caption = entry.get("Caption-Abstract", "")
+                    keywords = entry.get("Keywords", [])
+                    if isinstance(keywords, str):
+                        keywords = [keywords]
+                    return title or "", caption or "", keywords or []
+        except Exception:
+            pass
+        return "", "", []
+
+    @staticmethod
+    def write_metadata(filepath, metadata: PhotoMetadata, backup=True,
+                       append_keywords=False, skip_existing=False):
         """Write title, caption, keywords to file via exiftool."""
         args = ["exiftool"]
 
         if not backup:
             args.append("-overwrite_original")
 
-        # IPTC fields
-        args.append(f"-IPTC:ObjectName={metadata.title}")
-        args.append(f"-IPTC:Caption-Abstract={metadata.caption}")
+        # Check existing metadata if we need to skip or append
+        existing_title, existing_caption, existing_keywords = "", "", []
+        if skip_existing or append_keywords:
+            existing_title, existing_caption, existing_keywords = \
+                MetadataWriter.read_existing_metadata(filepath)
 
-        # Clear existing keywords first, then add new ones
-        args.append("-IPTC:Keywords=")
-        for kw in metadata.keywords:
-            args.append(f"-IPTC:Keywords+={kw}")
+        # Title: skip if exists and skip_existing is on
+        if not (skip_existing and existing_title):
+            args.append(f"-IPTC:ObjectName={metadata.title}")
+            args.append(f"-XMP:Title={metadata.title}")
 
-        # XMP embedded (belt and braces)
-        args.append(f"-XMP:Title={metadata.title}")
-        args.append(f"-XMP:Description={metadata.caption}")
-        args.append("-XMP:Subject=")
-        for kw in metadata.keywords:
-            args.append(f"-XMP:Subject+={kw}")
+        # Caption: skip if exists and skip_existing is on
+        if not (skip_existing and existing_caption):
+            args.append(f"-IPTC:Caption-Abstract={metadata.caption}")
+            args.append(f"-XMP:Description={metadata.caption}")
+            args.append(f"-EXIF:ImageDescription={metadata.caption}")
 
-        # EXIF description as well
-        args.append(f"-EXIF:ImageDescription={metadata.caption}")
+        # Keywords: append or replace
+        if append_keywords:
+            # Only add keywords that don't already exist
+            existing_lower = {k.lower() for k in existing_keywords}
+            new_keywords = [
+                kw for kw in metadata.keywords
+                if kw.lower() not in existing_lower
+            ]
+            for kw in new_keywords:
+                args.append(f"-IPTC:Keywords+={kw}")
+                args.append(f"-XMP:Subject+={kw}")
+        else:
+            # Two-pass: clear all keywords first, then write new ones
+            clear_args = ["exiftool"]
+            if not backup:
+                clear_args.append("-overwrite_original")
+            clear_args.extend([
+                "-IPTC:Keywords=",
+                "-XMP:Subject=",
+                filepath
+            ])
+            subprocess.run(clear_args, capture_output=True, text=True, timeout=15)
+
+            # Now add the new keywords
+            for kw in metadata.keywords:
+                args.append(f"-IPTC:Keywords+={kw}")
+                args.append(f"-XMP:Subject+={kw}")
 
         args.append(filepath)
 
@@ -914,9 +964,17 @@ class PhotoScribe(QMainWindow):
         self.backup_check.setChecked(True)
         options_layout.addWidget(self.backup_check)
 
-        self.overwrite_check = QCheckBox("Overwrite existing IPTC metadata")
-        self.overwrite_check.setChecked(True)
-        options_layout.addWidget(self.overwrite_check)
+        self.append_keywords_check = QCheckBox(
+            "Append keywords to existing (instead of replacing)"
+        )
+        self.append_keywords_check.setChecked(False)
+        options_layout.addWidget(self.append_keywords_check)
+
+        self.skip_existing_check = QCheckBox(
+            "Skip title/caption if file already has them"
+        )
+        self.skip_existing_check.setChecked(False)
+        options_layout.addWidget(self.skip_existing_check)
 
         settings_layout.addWidget(options_group)
         settings_layout.addStretch()
@@ -1174,6 +1232,10 @@ class PhotoScribe(QMainWindow):
             self.context_fields["ctx_photographer"].setText(photographer)
         backup = self.settings.value("create_backup", "true")
         self.backup_check.setChecked(backup == "true")
+        append_kw = self.settings.value("append_keywords", "false")
+        self.append_keywords_check.setChecked(append_kw == "true")
+        skip_existing = self.settings.value("skip_existing", "false")
+        self.skip_existing_check.setChecked(skip_existing == "true")
 
     def _save_settings(self):
         self.settings.setValue("ollama_url", self.ollama_url.text())
@@ -1181,6 +1243,14 @@ class PhotoScribe(QMainWindow):
         self.settings.setValue(
             "create_backup",
             "true" if self.backup_check.isChecked() else "false"
+        )
+        self.settings.setValue(
+            "append_keywords",
+            "true" if self.append_keywords_check.isChecked() else "false"
+        )
+        self.settings.setValue(
+            "skip_existing",
+            "true" if self.skip_existing_check.isChecked() else "false"
         )
         self.settings.setValue(
             "photographer",
@@ -1567,7 +1637,9 @@ class PhotoScribe(QMainWindow):
         reply = QMessageBox.question(
             self, "Write Metadata",
             f"Write metadata to {len(completed)} file(s)?\n\n"
-            f"{'Backup files will be created.' if self.backup_check.isChecked() else 'WARNING: No backup will be created!'}",
+            f"{'Backup files will be created.' if self.backup_check.isChecked() else 'WARNING: No backup will be created!'}\n"
+            f"{'Keywords will be appended to existing.' if self.append_keywords_check.isChecked() else 'Keywords will replace existing.'}\n"
+            f"{'Title/caption will be skipped if already present.' if self.skip_existing_check.isChecked() else 'Title/caption will be overwritten.'}",
             QMessageBox.Yes | QMessageBox.No,
             QMessageBox.Yes
         )
@@ -1581,7 +1653,9 @@ class PhotoScribe(QMainWindow):
                 MetadataWriter.write_metadata(
                     photo.filepath,
                     photo.metadata,
-                    backup=self.backup_check.isChecked()
+                    backup=self.backup_check.isChecked(),
+                    append_keywords=self.append_keywords_check.isChecked(),
+                    skip_existing=self.skip_existing_check.isChecked(),
                 )
                 success += 1
                 self.log(f"Wrote metadata: {photo.filename}")
