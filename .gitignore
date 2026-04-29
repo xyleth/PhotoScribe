@@ -56,6 +56,9 @@ Desktop.ini
 # share .claude/settings.json across collaborators)
 .claude/
 
+# Private design notes (tracked separately in xyleth/PhotoScribe-notes)
+notes/
+
 # ExifTool backup files
 *_original
 
